@@ -2,7 +2,8 @@ public enum Command {
 	QUIT("q"),
 	RUN("run"),
 	LOCALS("locals"),
-	BREAKPOINT("break"),
+	SET_BREAKPOINT("break"),
+	PRINT_BREAKPOINTS("breaks"),
 	STEP_OVER("step"),
 	STEP_INTO("into"),
 	UNKNOWN("");

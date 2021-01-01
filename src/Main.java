@@ -13,7 +13,6 @@ public class Main {
 
 		BlockingQueue<Response> responseQueue = new ArrayBlockingQueue<>(1);
 		Debugger debugger = new Debugger(testProgram, responseQueue);
-		debugger.startListening();
 
 		Scanner scanner = new Scanner(System.in);
 		for (; ; ) {

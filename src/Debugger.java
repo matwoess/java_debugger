@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.stream.Collectors;
 
 public class Debugger {
 
@@ -20,8 +21,8 @@ public class Debugger {
 	private final VirtualMachine vm;
 	private Location currLocation;
 	private ThreadReference thread;
-	private List<Integer> breakpoints = new ArrayList<>();
-	private BlockingQueue<Response> responseQueue;
+	private final List<Integer> breakpoints = new ArrayList<>();
+	private final BlockingQueue<Response> responseQueue;
 
 	public Debugger(String debugClass, BlockingQueue<Response> responseQueue) throws Exception {
 		this.debugClass = debugClass;
@@ -29,14 +30,16 @@ public class Debugger {
 		vm = initVM();
 		reqManager = vm.eventRequestManager();
 		eventQueue = vm.eventQueue();
+		new Listener().start();
+		enableClassPrepareRequest();
 	}
 
 	private VirtualMachine initVM() throws Exception {
 		LaunchingConnector con = Bootstrap.virtualMachineManager().defaultConnector();
-		Map<String, Connector.Argument> vmargs = con.defaultArguments();
-		vmargs.get("main").setValue(debugClass); // set the main class
+		Map<String, Connector.Argument> vmArgs = con.defaultArguments();
+		vmArgs.get("main").setValue(debugClass); // set the main class
 		try {
-			VirtualMachine vm = con.launch(vmargs);
+			VirtualMachine vm = con.launch(vmArgs);
 			Process proc = vm.process();
 			new Redirection(proc.getErrorStream(), System.err).start();
 			new Redirection(proc.getInputStream(), System.out).start();
@@ -45,11 +48,6 @@ public class Debugger {
 			e.printStackTrace();
 		}
 		throw new Exception("Error initializing VM");
-	}
-
-	public void startListening() {
-		new Listener().start();
-		enableClassPrepareRequest();
 	}
 
 	public void enableClassPrepareRequest() {
@@ -62,7 +60,7 @@ public class Debugger {
 		return thread;
 	}
 
-	public void sendCommand(String commandString) throws IncompatibleThreadStateException, AbsentInformationException {
+	public void sendCommand(String commandString) throws IncompatibleThreadStateException {
 		String command = commandString.split(" ")[0];
 		Command cmd = Command.fromString(command);
 		String[] args = null;
@@ -75,12 +73,23 @@ public class Debugger {
 			case LOCALS -> printLocals();
 			case STEP_OVER -> stepOver(getThread());
 			case STEP_INTO -> stepInto(getThread());
-			case BREAKPOINT -> installBreakpoint(args);
+			case SET_BREAKPOINT -> installBreakpoint(args);
+			case PRINT_BREAKPOINTS -> printBreakpoints();
 			default -> {
 				System.out.println("Invalid command");
 				respond(Response.NOK);
 			}
 		}
+	}
+
+	private void printBreakpoints() {
+		if (breakpoints.size() == 0) {
+			System.out.println("No breakpoints yet");
+		} else {
+			System.out.println("Breakpoints at line numbers: " + breakpoints.stream()
+					.map(Object::toString).collect(Collectors.joining(", ")));
+		}
+		respond(Response.OK);
 	}
 
 	private void respond(Response response) {
@@ -92,8 +101,14 @@ public class Debugger {
 	}
 
 	private void installBreakpoint(String[] args) {
+		if (args == null || args.length != 1) {
+			System.out.println("Invalid number of arguments. Line number must be specified.");
+			respond(Response.NOK);
+			return;
+		}
 		int lineNr = Integer.parseInt(args[0]);
 		breakpoints.add(lineNr);
+		respond(Response.OK);
 	}
 
 	void stepOver(ThreadReference thread) {
@@ -110,7 +125,13 @@ public class Debugger {
 	}
 
 	private void printLocals() throws IncompatibleThreadStateException {
+		if (getThread().frames().size() == 0) {
+			System.out.println("No frames initialized yet");
+			respond(Response.NOK);
+			return;
+		}
 		printVars(getThread().frame(0));
+		respond(Response.OK);
 	}
 
 	void printVars(StackFrame frame) {
@@ -147,7 +168,10 @@ public class Debugger {
 					EventSet events = eventQueue.remove();
 					for (Event e : events) {
 						Response resp = processEvent(e);
-						respond(resp);
+						if (resp != null) {
+							respond(resp);
+							if (resp == Response.QUIT) return;
+						}
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -161,26 +185,31 @@ public class Debugger {
 
 			if (e instanceof VMStartEvent) {
 				thread = ((VMStartEvent) e).thread();
+				return null;
 			} else if (e instanceof MethodEntryEvent) {
 				currLocation = ((MethodEntryEvent) e).location();
+				printLocation(currLocation);
 			} else if (e instanceof BreakpointEvent) {
 				currLocation = ((BreakpointEvent) e).location();
 				printLocation(currLocation);
 			} else if (e instanceof StepEvent) {
-				StepEvent se = (StepEvent) e;
-				System.out.print("step halted in " + se.location().method().name() + " at ");
-				currLocation = se.location();
-				printLocation(se.location());
-				printVars(se.thread().frame(0));
-				reqManager.deleteEventRequest(se.request());
+				step((StepEvent) e);
 			} else if (e instanceof ClassPrepareEvent) {
 				setBreakPoints((ClassPrepareEvent) e);
-				vm.resume();
+				return null;
 			} else if (e instanceof VMDeathEvent || e instanceof VMDisconnectEvent) {
 				return Response.QUIT;
 			}
 
 			return Response.OK;
+		}
+
+		private void step(StepEvent se) throws IncompatibleThreadStateException {
+			System.out.print("step halted in " + se.location().method().name() + " at ");
+			currLocation = se.location();
+			printLocation(se.location());
+			//printLocals();
+			reqManager.deleteEventRequest(se.request());
 		}
 
 
@@ -191,10 +220,11 @@ public class Debugger {
 				BreakpointRequest bpReq = reqManager.createBreakpointRequest(location);
 				bpReq.enable();
 			}
+			vm.resume();
 		}
 
 		private void printLocation(Location location) {
-			System.out.println(String.format("Stopped at line: %d, bci: %d", location.lineNumber(), location.codeIndex()));
+			System.out.printf("Line: %d, bci: %d\n", location.lineNumber(), location.codeIndex());
 		}
 	}
 }
