@@ -2,10 +2,13 @@ public enum Command {
 	QUIT("q"),
 	RUN("run"),
 	LOCALS("locals"),
+	GLOBALS("globals"),
 	SET_BREAKPOINT("break"),
-	PRINT_BREAKPOINTS("breaks"),
+	REMOVE_BREAKPOINT("rmbreak"),
+	PRINT_BREAKPOINTS("lsbreak"),
 	STEP_OVER("step"),
 	STEP_INTO("into"),
+	STATUS("status"),
 	UNKNOWN("");
 
 	private final String cmd;

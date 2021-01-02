@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.stream.Collectors;
 
 public class Debugger {
 
@@ -56,10 +55,6 @@ public class Debugger {
 		cpReq.enable();
 	}
 
-	public ThreadReference getThread() {
-		return thread;
-	}
-
 	public void sendCommand(String commandString) throws IncompatibleThreadStateException {
 		String command = commandString.split(" ")[0];
 		Command cmd = Command.fromString(command);
@@ -70,11 +65,14 @@ public class Debugger {
 		switch (cmd) {
 			case QUIT -> vm.exit(0);
 			case RUN -> vm.resume();
-			case LOCALS -> printLocals();
-			case STEP_OVER -> stepOver(getThread());
-			case STEP_INTO -> stepInto(getThread());
+			case LOCALS -> respond(Util.printLocals(getThread()));
+			case GLOBALS -> respond(Util.printGlobals(getThread()));
+			case STEP_OVER -> step(getThread(), StepRequest.STEP_OVER);
+			case STEP_INTO -> step(getThread(), StepRequest.STEP_INTO);
 			case SET_BREAKPOINT -> installBreakpoint(args);
-			case PRINT_BREAKPOINTS -> printBreakpoints();
+			case REMOVE_BREAKPOINT -> removeBreakpoint(args);
+			case PRINT_BREAKPOINTS -> respond(Util.printBreakpoints(breakpoints));
+			case STATUS -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
 			default -> {
 				System.out.println("Invalid command");
 				respond(Response.NOK);
@@ -82,22 +80,12 @@ public class Debugger {
 		}
 	}
 
-	private void printBreakpoints() {
-		if (breakpoints.size() == 0) {
-			System.out.println("No breakpoints yet");
-		} else {
-			System.out.println("Breakpoints at line numbers: " + breakpoints.stream()
-					.map(Object::toString).collect(Collectors.joining(", ")));
-		}
-		respond(Response.OK);
+	public ThreadReference getThread() {
+		return thread;
 	}
 
 	private void respond(Response response) {
 		responseQueue.add(response);
-	}
-
-	private void stepInto(ThreadReference thread) {
-		System.out.println("NOT IMPLEMENTED");
 	}
 
 	private void installBreakpoint(String[] args) {
@@ -108,14 +96,31 @@ public class Debugger {
 		}
 		int lineNr = Integer.parseInt(args[0]);
 		breakpoints.add(lineNr);
+		System.out.printf("Breakpoint in line %s added.\n", lineNr);
 		respond(Response.OK);
 	}
 
-	void stepOver(ThreadReference thread) {
+	private void removeBreakpoint(String[] args) {
+		if (args == null || args.length != 1) {
+			System.out.println("Invalid number of arguments. Line number must be specified.");
+			respond(Response.NOK);
+			return;
+		}
+		Integer lineNr = Integer.parseInt(args[0]);
+		if (!breakpoints.contains(lineNr)) {
+			System.out.println("No breakpoint yet in line number " + lineNr);
+			respond(Response.NOK);
+			return;
+		}
+		breakpoints.remove(lineNr);
+		System.out.printf("Breakpoint in line %s removed.\n", lineNr);
+		respond(Response.OK);
+	}
+
+	void step(ThreadReference thread, int stepType) {
 		try {
-			StepRequest req = reqManager.createStepRequest(thread,
-					StepRequest.STEP_LINE, StepRequest.STEP_OVER);
-			req.addClassFilter("*Test"); // create step requests only in class Test
+			StepRequest req = reqManager.createStepRequest(thread, StepRequest.STEP_LINE, stepType);
+			req.addClassFilter(debugClass); // create step requests only in class Test
 			req.addCountFilter(1); // create step event after 1 step
 			req.enable();
 			vm.resume();
@@ -124,41 +129,6 @@ public class Debugger {
 		}
 	}
 
-	private void printLocals() throws IncompatibleThreadStateException {
-		if (getThread().frames().size() == 0) {
-			System.out.println("No frames initialized yet");
-			respond(Response.NOK);
-			return;
-		}
-		printVars(getThread().frame(0));
-		respond(Response.OK);
-	}
-
-	void printVars(StackFrame frame) {
-		try {
-			for (LocalVariable v : frame.visibleVariables()) {
-				System.out.print(v.name() + ": " + v.type().name() + " = ");
-				printValue(frame.getValue(v));
-				System.out.println();
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	static void printValue(Value val) {
-		if (val instanceof IntegerValue) {
-			System.out.print(((IntegerValue) val).value() + " ");
-		} else if (val instanceof StringReference) {
-			System.out.print(((StringReference) val).value() + " ");
-		} else if (val instanceof ArrayReference) {
-			for (Value v : ((ArrayReference) val).getValues()) {
-				printValue(v);
-				System.out.println();
-			}
-		} else {
-		}
-	}
 
 	public class Listener extends Thread {
 		@Override
@@ -180,7 +150,7 @@ public class Debugger {
 			}
 		}
 
-		private Response processEvent(Event e) throws IncompatibleThreadStateException, AbsentInformationException {
+		private Response processEvent(Event e) throws AbsentInformationException {
 			System.out.println("Event: " + e);
 
 			if (e instanceof VMStartEvent) {
@@ -198,16 +168,17 @@ public class Debugger {
 				setBreakPoints((ClassPrepareEvent) e);
 				return null;
 			} else if (e instanceof VMDeathEvent || e instanceof VMDisconnectEvent) {
+				System.out.println("Program terminated.");
 				return Response.QUIT;
 			}
 
 			return Response.OK;
 		}
 
-		private void step(StepEvent se) throws IncompatibleThreadStateException {
+		private void step(StepEvent se) {
 			System.out.print("step halted in " + se.location().method().name() + " at ");
-			currLocation = se.location();
 			printLocation(se.location());
+			currLocation = se.location();
 			//printLocals();
 			reqManager.deleteEventRequest(se.request());
 		}

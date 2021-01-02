@@ -8,6 +8,14 @@ import static java.lang.System.exit;
 public class Main {
 
 	public static void main(String[] args) throws Exception {
+		if (args == null || args.length != 1) {
+			System.out.println("Invalid amount of arguments.");
+			printUsage();
+			return;
+		} else if (args[0].equals("-h") || args[0].equals("--help")) {
+			printUsage();
+			return;
+		}
 		String testProgram = args[0];
 		compileProgram(testProgram);
 
@@ -24,6 +32,11 @@ public class Main {
 				break;
 			}
 		}
+	}
+
+	private static void printUsage() {
+		System.out.println("Usage:\njava Main <TestProgram>");
+		System.out.println("    <TestProgram> ... the Java class file to compile and debug (without extension).");
 	}
 
 	private static void compileProgram(String toCompile) throws IOException, InterruptedException {
