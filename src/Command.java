@@ -8,6 +8,7 @@ public enum Command {
 	PRINT_BREAKPOINTS("lsbreak"),
 	STEP_OVER("step"),
 	STEP_INTO("into"),
+	METHOD_ENTRY("entry"),
 	STATUS("status"),
 	UNKNOWN("");
 

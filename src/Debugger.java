@@ -2,10 +2,7 @@ import com.sun.jdi.*;
 import com.sun.jdi.connect.Connector;
 import com.sun.jdi.connect.LaunchingConnector;
 import com.sun.jdi.event.*;
-import com.sun.jdi.request.BreakpointRequest;
-import com.sun.jdi.request.ClassPrepareRequest;
-import com.sun.jdi.request.EventRequestManager;
-import com.sun.jdi.request.StepRequest;
+import com.sun.jdi.request.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +19,7 @@ public class Debugger {
 	private ThreadReference thread;
 	private final List<Integer> breakpoints = new ArrayList<>();
 	private final BlockingQueue<Response> responseQueue;
+	private boolean breakOnEnter = false;
 
 	public Debugger(String debugClass, BlockingQueue<Response> responseQueue) throws Exception {
 		this.debugClass = debugClass;
@@ -31,6 +29,7 @@ public class Debugger {
 		eventQueue = vm.eventQueue();
 		new Listener().start();
 		enableClassPrepareRequest();
+		enableMethodEntryRequest();
 	}
 
 	private VirtualMachine initVM() throws Exception {
@@ -55,6 +54,13 @@ public class Debugger {
 		cpReq.enable();
 	}
 
+
+	private void enableMethodEntryRequest() {
+		MethodEntryRequest req = reqManager.createMethodEntryRequest();
+		req.addClassFilter(debugClass);
+		req.enable();
+	}
+
 	public void sendCommand(String commandString) throws IncompatibleThreadStateException {
 		String command = commandString.split(" ")[0];
 		Command cmd = Command.fromString(command);
@@ -72,6 +78,7 @@ public class Debugger {
 			case SET_BREAKPOINT -> installBreakpoint(args);
 			case REMOVE_BREAKPOINT -> removeBreakpoint(args);
 			case PRINT_BREAKPOINTS -> respond(Util.printBreakpoints(breakpoints));
+			case METHOD_ENTRY -> respond(methodEntry());
 			case STATUS -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
 			default -> {
 				System.out.println("Invalid command");
@@ -86,6 +93,12 @@ public class Debugger {
 
 	private void respond(Response response) {
 		responseQueue.add(response);
+	}
+
+	private Response methodEntry() {
+		breakOnEnter = !breakOnEnter;
+		System.out.printf("Break on method entry: %s.\n", breakOnEnter ? "on" : "off");
+		return Response.OK;
 	}
 
 	private void installBreakpoint(String[] args) {
@@ -157,13 +170,23 @@ public class Debugger {
 				thread = ((VMStartEvent) e).thread();
 				return null;
 			} else if (e instanceof MethodEntryEvent) {
-				currLocation = ((MethodEntryEvent) e).location();
+				if (!breakOnEnter) {
+					vm.resume();
+					return null;
+				}
+				MethodEntryEvent me = (MethodEntryEvent) e;
+				currLocation = me.location();
+				System.out.printf("Halted while entering method '%s' at ", me.method().name());
 				printLocation(currLocation);
 			} else if (e instanceof BreakpointEvent) {
 				currLocation = ((BreakpointEvent) e).location();
 				printLocation(currLocation);
 			} else if (e instanceof StepEvent) {
-				step((StepEvent) e);
+				StepEvent se = (StepEvent) e;
+				System.out.print("Step halted in " + se.location().method().name() + " at ");
+				printLocation(se.location());
+				currLocation = se.location();
+				reqManager.deleteEventRequest(se.request());
 			} else if (e instanceof ClassPrepareEvent) {
 				setBreakPoints((ClassPrepareEvent) e);
 				return null;
@@ -175,19 +198,17 @@ public class Debugger {
 			return Response.OK;
 		}
 
-		private void step(StepEvent se) {
-			System.out.print("step halted in " + se.location().method().name() + " at ");
-			printLocation(se.location());
-			currLocation = se.location();
-			//printLocals();
-			reqManager.deleteEventRequest(se.request());
-		}
-
 
 		private void setBreakPoints(ClassPrepareEvent e) throws AbsentInformationException {
 			ClassType classType = (ClassType) e.referenceType();
 			for (Integer lineNumber : breakpoints) {
-				Location location = classType.locationsOfLine(lineNumber).get(0);
+				List<Location> locations = classType.locationsOfLine(lineNumber);
+				if (locations.size() < 1) {
+					System.out.printf("Warning: Could not set breakpoint in line %d" +
+							", no such code location found in class %s.\n", lineNumber, classType.name());
+					continue;
+				}
+				Location location = locations.get(0);
 				BreakpointRequest bpReq = reqManager.createBreakpointRequest(location);
 				bpReq.enable();
 			}
