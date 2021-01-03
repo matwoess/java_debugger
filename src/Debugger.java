@@ -11,14 +11,14 @@ import java.util.concurrent.BlockingQueue;
 
 public class Debugger {
 
+	private final VirtualMachine vm;
+	private final String debugClass;
 	private final EventRequestManager reqManager;
 	private final EventQueue eventQueue;
-	private final String debugClass;
-	private final VirtualMachine vm;
-	private Location currLocation;
-	private ThreadReference thread;
-	private final List<Integer> breakpoints = new ArrayList<>();
 	private final BlockingQueue<Response> responseQueue;
+	private ThreadReference thread;
+	private Location currLocation;
+	private final List<Integer> breakpoints = new ArrayList<>();
 	private boolean breakOnEnter = false;
 
 	public Debugger(String debugClass, BlockingQueue<Response> responseQueue) throws Exception {
@@ -71,14 +71,15 @@ public class Debugger {
 		switch (cmd) {
 			case QUIT -> vm.exit(0);
 			case RUN -> vm.resume();
-			case LOCALS -> respond(Util.printLocals(getThread()));
-			case GLOBALS -> respond(Util.printGlobals(getThread()));
 			case STEP_OVER -> step(getThread(), StepRequest.STEP_OVER);
 			case STEP_INTO -> step(getThread(), StepRequest.STEP_INTO);
+			case LOCALS -> respond(Util.printLocals(getThread()));
+			case GLOBALS -> respond(Util.printGlobals(getThread()));
 			case SET_BREAKPOINT -> installBreakpoint(args);
 			case REMOVE_BREAKPOINT -> removeBreakpoint(args);
 			case PRINT_BREAKPOINTS -> respond(Util.printBreakpoints(breakpoints));
 			case METHOD_ENTRY -> respond(methodEntry());
+			case STACK_TRACE -> respond(Util.stackTrace(getThread()));
 			case STATUS -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
 			default -> {
 				System.out.println("Invalid command");
@@ -131,9 +132,14 @@ public class Debugger {
 	}
 
 	void step(ThreadReference thread, int stepType) {
+		if (currLocation == null) {
+			System.out.println("Not at any breakpoint. Use 'run' first.");
+			respond(Response.NOK);
+			return;
+		}
 		try {
 			StepRequest req = reqManager.createStepRequest(thread, StepRequest.STEP_LINE, stepType);
-			req.addClassFilter(debugClass); // create step requests only in class Test
+			req.addClassFilter("*" + debugClass); // create step requests only in class Test
 			req.addCountFilter(1); // create step event after 1 step
 			req.enable();
 			vm.resume();

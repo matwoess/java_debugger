@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class Util {
@@ -65,15 +66,38 @@ public class Util {
 	static void printValue(Value val) {
 		if (val instanceof IntegerValue) {
 			System.out.print(((IntegerValue) val).value() + " ");
+		} else if (val instanceof FloatValue) {
+			System.out.print(((FloatValue) val).value() + " ");
 		} else if (val instanceof StringReference) {
-			System.out.print(((StringReference) val).value() + " ");
+			System.out.print('"' + ((StringReference) val).value() + '"' + ' ');
 		} else if (val instanceof ArrayReference) {
+			System.out.print("[ ");
 			for (Value v : ((ArrayReference) val).getValues()) {
 				printValue(v);
-				System.out.println();
 			}
+			System.out.println("]");
 		} else {
+			System.out.print("TODO ");
 		}
+	}
+
+
+	public static Response stackTrace(ThreadReference thread) throws IncompatibleThreadStateException {
+		List<StackFrame> frames = thread.frames();
+		Consumer<Integer> identFn = (Integer x) -> {
+			for (int i = 0; i < x; i++) System.out.print(" ");
+		};
+		System.out.println("Stack trace:");
+		int ident = -2;
+		for (StackFrame frame : frames) {
+			Method meth = frame.location().method();
+			identFn.accept(ident);
+			if (ident >= 0) System.out.print("L ");
+			System.out.println(meth.declaringType().name() + "." + meth.name() + ":");
+			// printLocalVars(frame);
+			ident += 2;
+		}
+		return Response.OK;
 	}
 
 	public static Response printProgramState(String debugClass, Location currLoc, List<Integer> breakpoints) {
@@ -91,7 +115,7 @@ public class Util {
 				System.out.printf("%3d", lineNr);
 				System.out.print(" ");
 				if (breakpoints.contains(lineNr)) {
-					System.out.print("*");
+					System.out.print("o");
 				} else {
 					System.out.print(" ");
 				}
@@ -99,8 +123,7 @@ public class Util {
 				System.out.println(line);
 			}
 			return Response.OK;
-		}
-		catch (IOException ex) {
+		} catch (IOException ex) {
 			ex.printStackTrace();
 			return Response.NOK;
 		}

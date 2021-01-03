@@ -9,6 +9,7 @@ public enum Command {
 	STEP_OVER("step"),
 	STEP_INTO("into"),
 	METHOD_ENTRY("entry"),
+	STACK_TRACE("stack"),
 	STATUS("status"),
 	UNKNOWN("");
 
