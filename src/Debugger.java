@@ -19,7 +19,7 @@ public class Debugger {
 	private ThreadReference thread;
 	private Location currLocation;
 	private final List<Integer> breakpoints = new ArrayList<>();
-	private boolean breakOnEnter = false;
+	private MethodEntryRequest breakOnEnterReq;
 
 	public Debugger(String debugClass, BlockingQueue<Response> responseQueue) throws Exception {
 		this.debugClass = debugClass;
@@ -28,8 +28,12 @@ public class Debugger {
 		reqManager = vm.eventRequestManager();
 		eventQueue = vm.eventQueue();
 		new Listener().start();
-		enableClassPrepareRequest();
-		enableMethodEntryRequest();
+		ClassPrepareRequest cpReq = reqManager.createClassPrepareRequest();
+		cpReq.addClassFilter(debugClass);
+		cpReq.enable();
+		breakOnEnterReq = reqManager.createMethodEntryRequest();
+		breakOnEnterReq.addClassFilter(debugClass);
+		breakOnEnterReq.disable();
 	}
 
 	private VirtualMachine initVM() throws Exception {
@@ -46,19 +50,6 @@ public class Debugger {
 			e.printStackTrace();
 		}
 		throw new Exception("Error initializing VM");
-	}
-
-	public void enableClassPrepareRequest() {
-		ClassPrepareRequest cpReq = reqManager.createClassPrepareRequest();
-		cpReq.addClassFilter(debugClass);
-		cpReq.enable();
-	}
-
-
-	private void enableMethodEntryRequest() {
-		MethodEntryRequest req = reqManager.createMethodEntryRequest();
-		req.addClassFilter(debugClass);
-		req.enable();
 	}
 
 	public void sendCommand(String commandString) throws IncompatibleThreadStateException {
@@ -97,8 +88,9 @@ public class Debugger {
 	}
 
 	private Response methodEntry() {
-		breakOnEnter = !breakOnEnter;
-		System.out.printf("Break on method entry: %s.\n", breakOnEnter ? "on" : "off");
+		if (breakOnEnterReq.isEnabled()) breakOnEnterReq.disable();
+		else breakOnEnterReq.enable();
+		System.out.printf("Break on method entry: %s.\n", breakOnEnterReq.isEnabled() ? "on" : "off");
 		return Response.OK;
 	}
 
@@ -176,7 +168,7 @@ public class Debugger {
 				thread = ((VMStartEvent) e).thread();
 				return null;
 			} else if (e instanceof MethodEntryEvent) {
-				if (!breakOnEnter) {
+				if (!breakOnEnterReq.isEnabled()) {
 					vm.resume();
 					return null;
 				}
