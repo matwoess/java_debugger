@@ -2,6 +2,7 @@ import java.util.Arrays;
 
 public class Test {
 	public static int globalVar = 10;
+	public static double[] globalArr = new double[] {2.0, 4.5};
 
 	public static void main(String[] args) {
 		int i = 1;

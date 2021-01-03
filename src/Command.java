@@ -10,7 +10,8 @@ public enum Command {
 	STEP_INTO("into"),
 	METHOD_ENTRY("entry"),
 	STACK_TRACE("stack"),
-	STATUS("status"),
+	PRINT_VALUE("print"),
+	STATE("state"),
 	UNKNOWN("");
 
 	private final String cmd;

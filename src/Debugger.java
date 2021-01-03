@@ -52,7 +52,7 @@ public class Debugger {
 		throw new Exception("Error initializing VM");
 	}
 
-	public void sendCommand(String commandString) throws IncompatibleThreadStateException {
+	public void sendCommand(String commandString) throws IncompatibleThreadStateException, AbsentInformationException, ClassNotLoadedException {
 		String command = commandString.split(" ")[0];
 		Command cmd = Command.fromString(command);
 		String[] args = null;
@@ -71,7 +71,8 @@ public class Debugger {
 			case PRINT_BREAKPOINTS -> respond(Util.printBreakpoints(breakpoints));
 			case METHOD_ENTRY -> respond(methodEntry());
 			case STACK_TRACE -> respond(Util.stackTrace(getThread()));
-			case STATUS -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
+			case PRINT_VALUE -> respond(Util.printValueByName(getThread(), args));
+			case STATE -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
 			default -> {
 				System.out.println("Invalid command");
 				respond(Response.NOK);
