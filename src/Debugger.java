@@ -147,12 +147,13 @@ public class Debugger {
 			for (; ; ) {
 				try {
 					EventSet events = eventQueue.remove();
+					Response resp = null;
 					for (Event e : events) {
-						Response resp = processEvent(e);
-						if (resp != null) {
-							respond(resp);
-							if (resp == Response.QUIT) return;
-						}
+						resp = processEvent(e);
+					}
+					if (resp != null) {
+						respond(resp);
+						if (resp == Response.QUIT) return;
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
