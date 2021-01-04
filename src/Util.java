@@ -80,6 +80,16 @@ public class Util {
 				printValue(v);
 			}
 			System.out.print("]");
+		} else if (val instanceof ObjectReference) {
+			ObjectReference ref = (ObjectReference) val;
+//			Method toString = ref.referenceType().methodsByName("toString", "()Ljava/lang/String;").get(0);
+//			try {
+//				Value value = ref.invokeMethod(ref.owningThread(), toString, Collections.emptyList(), 0);
+//				printValue(value);
+//			} catch (Exception e) {
+//				e.printStackTrace();
+//			}
+			System.out.print(ref.toString() + " ");
 		} else if (val == null) {
 			System.out.print("null ");
 		} else {
