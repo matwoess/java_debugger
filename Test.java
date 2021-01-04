@@ -14,6 +14,8 @@ public class Test {
 		String[] arr = getStringArray();
 		System.out.println(Arrays.toString(arr));
 		int sumOfFirst6 = sumOfFirstN(6);
+		System.out.println("Sum of first 6 = " + sumOfFirst6);
+		System.out.println("globalArr[0] = " + globalArr[0]);
 	}
 
 	public static int add(int x, int y) {
