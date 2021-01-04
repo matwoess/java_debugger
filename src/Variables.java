@@ -14,7 +14,7 @@ public class Variables {
 		try {
 			for (LocalVariable v : frame.visibleVariables()) {
 				System.out.print(v.name() + ": " + v.type().name() + " = ");
-				Misc.printValue(thread.frame(0).getValue(v), thread);
+				Util.printValue(thread.frame(0).getValue(v), thread);
 				System.out.println();
 			}
 		} catch (Exception e) {
@@ -40,7 +40,7 @@ public class Variables {
 				} else {
 					fieldValue = objRef.getValue(f);
 				}
-				Misc.printValue(fieldValue);
+				Util.printValue(fieldValue);
 				System.out.println();
 			}
 		} catch (Exception e) {
@@ -97,12 +97,12 @@ public class Variables {
 			} else {
 				Value val = arr.getValue(idx);
 				System.out.print(var.name() + "[" + idx + "]" + (val != null ? ": " + val.type().name() : "") + " = ");
-				Misc.printValue(val, frame.thread());
+				Util.printValue(val, frame.thread());
 				System.out.println();
 			}
 		} else {
 			System.out.print(var.name() + ": " + var.type().name() + " = ");
-			Misc.printValue(frame.getValue(var), frame.thread());
+			Util.printValue(frame.getValue(var), frame.thread());
 			System.out.println();
 		}
 	}
@@ -115,7 +115,7 @@ public class Variables {
 			} else {
 				Value val = arr.getValue(idx);
 				System.out.print(fld.name() + "[" + idx + "]" + (val != null ? ": " + val.type().name() : "") + " = ");
-				Misc.printValue(val, thread);
+				Util.printValue(val, thread);
 				System.out.println();
 			}
 		} else {
@@ -127,7 +127,7 @@ public class Variables {
 			} else {
 				fieldValue = objRef.getValue(fld);
 			}
-			Misc.printValue(fieldValue, thread);
+			Util.printValue(fieldValue, thread);
 			System.out.println();
 		}
 	}
@@ -186,7 +186,7 @@ public class Variables {
 			fieldValue = objRef.getValue(fld);
 		}
 		System.out.print(varName + "." + fieldName + (fieldValue != null ? ": " + fieldValue.type().name() : "") + " = ");
-		Misc.printValue(fieldValue);
+		Util.printValue(fieldValue);
 		System.out.println();
 		return Response.OK;
 	}

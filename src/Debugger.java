@@ -68,12 +68,12 @@ public class Debugger {
 			case GLOBALS -> respond(Variables.printGlobals(getThread()));
 			case SET_BREAKPOINT -> installBreakpoint(args);
 			case REMOVE_BREAKPOINT -> removeBreakpoint(args);
-			case PRINT_BREAKPOINTS -> respond(Misc.printBreakpoints(breakpoints));
+			case PRINT_BREAKPOINTS -> respond(Util.printBreakpoints(breakpoints));
 			case METHOD_ENTRY -> respond(methodEntry());
-			case STACK_TRACE -> respond(Misc.stackTrace(getThread()));
+			case STACK_TRACE -> respond(Util.stackTrace(getThread()));
 			case PRINT_VALUE -> respond(Variables.printValueByName(getThread(), args));
 			case PRINT_FIELD -> respond(Variables.printObjectFieldByName(getThread(), args));
-			case STATE -> respond(Misc.printProgramState(debugClass, currLocation, breakpoints));
+			case STATE -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
 			default -> {
 				System.out.println("Invalid command");
 				respond(Response.NOK);
@@ -189,15 +189,15 @@ public class Debugger {
 				MethodEntryEvent me = (MethodEntryEvent) e;
 				currLocation = me.location();
 				System.out.printf("Halted while entering method '%s' at ", me.method().name());
-				Misc.printLocation(currLocation);
+				Util.printLocation(currLocation);
 			} else if (e instanceof BreakpointEvent) {
 				currLocation = ((BreakpointEvent) e).location();
 				System.out.print("Breakpoint halted in " + currLocation.method().name() + " at ");
-				Misc.printLocation(currLocation);
+				Util.printLocation(currLocation);
 			} else if (e instanceof StepEvent) {
 				StepEvent se = (StepEvent) e;
 				System.out.print("Step halted in " + se.location().method().name() + " at ");
-				Misc.printLocation(se.location());
+				Util.printLocation(se.location());
 				currLocation = se.location();
 				reqManager.deleteEventRequest(se.request());
 			} else if (e instanceof ClassPrepareEvent) {
