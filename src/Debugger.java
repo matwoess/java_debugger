@@ -19,7 +19,7 @@ public class Debugger {
 	private ThreadReference thread;
 	private Location currLocation;
 	private final List<Integer> breakpoints = new ArrayList<>();
-	private MethodEntryRequest breakOnEnterReq;
+	private final MethodEntryRequest breakOnEnterReq;
 
 	public Debugger(String debugClass, BlockingQueue<Response> responseQueue) throws Exception {
 		this.debugClass = debugClass;
@@ -29,10 +29,10 @@ public class Debugger {
 		eventQueue = vm.eventQueue();
 		new Listener().start();
 		ClassPrepareRequest cpReq = reqManager.createClassPrepareRequest();
-		cpReq.addClassFilter(debugClass);
+		cpReq.addClassFilter(debugClass + "*");
 		cpReq.enable();
 		breakOnEnterReq = reqManager.createMethodEntryRequest();
-		breakOnEnterReq.addClassFilter(debugClass);
+		breakOnEnterReq.addClassFilter(debugClass + "*");
 		breakOnEnterReq.disable();
 	}
 
@@ -89,8 +89,11 @@ public class Debugger {
 	}
 
 	private Response methodEntry() {
-		if (breakOnEnterReq.isEnabled()) breakOnEnterReq.disable();
-		else breakOnEnterReq.enable();
+		if (breakOnEnterReq.isEnabled()) {
+			breakOnEnterReq.disable();
+		} else {
+			breakOnEnterReq.enable();
+		}
 		System.out.printf("Break on method entry: %s.\n", breakOnEnterReq.isEnabled() ? "on" : "off");
 		return Response.OK;
 	}
@@ -132,8 +135,16 @@ public class Debugger {
 		}
 		try {
 			StepRequest req = reqManager.createStepRequest(thread, StepRequest.STEP_LINE, stepType);
-			req.addClassFilter("*" + debugClass); // create step requests only in class Test
-			req.addCountFilter(1); // create step event after 1 step
+			ObjectReference thisRef = null;
+			if (thread.frameCount() > 0) {
+				thisRef = thread.frame(0).thisObject();
+			}
+			if (thisRef != null) {
+				req.addInstanceFilter(thisRef);
+			} else {
+				req.addClassFilter(debugClass + "*");
+			}
+			req.addCountFilter(1);
 			req.enable();
 			vm.resume();
 		} catch (Exception e) {
@@ -188,7 +199,7 @@ public class Debugger {
 				currLocation = se.location();
 				reqManager.deleteEventRequest(se.request());
 			} else if (e instanceof ClassPrepareEvent) {
-				setBreakPoints((ClassPrepareEvent) e);
+				setClassBreakPoints((ClassPrepareEvent) e);
 				return null;
 			} else if (e instanceof VMDeathEvent || e instanceof VMDisconnectEvent) {
 				System.out.println("Program terminated.");
@@ -199,7 +210,7 @@ public class Debugger {
 		}
 
 
-		private void setBreakPoints(ClassPrepareEvent e) throws AbsentInformationException {
+		private void setClassBreakPoints(ClassPrepareEvent e) throws AbsentInformationException {
 			ClassType classType = (ClassType) e.referenceType();
 			for (Integer lineNumber : breakpoints) {
 				List<Location> locations = classType.locationsOfLine(lineNumber);
