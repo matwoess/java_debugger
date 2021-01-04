@@ -11,6 +11,7 @@ public enum Command {
 	METHOD_ENTRY("entry"),
 	STACK_TRACE("stack"),
 	PRINT_VALUE("print"),
+	PRINT_FIELD("printf"),
 	STATE("state"),
 	UNKNOWN("");
 

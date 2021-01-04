@@ -72,6 +72,7 @@ public class Debugger {
 			case METHOD_ENTRY -> respond(methodEntry());
 			case STACK_TRACE -> respond(Util.stackTrace(getThread()));
 			case PRINT_VALUE -> respond(Util.printValueByName(getThread(), args));
+			case PRINT_FIELD -> respond(Util.printObjectFieldByName(getThread(), args));
 			case STATE -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
 			default -> {
 				System.out.println("Invalid command");
@@ -191,6 +192,7 @@ public class Debugger {
 				printLocation(currLocation);
 			} else if (e instanceof BreakpointEvent) {
 				currLocation = ((BreakpointEvent) e).location();
+				System.out.print("Breakpoint halted in " + currLocation.method().name() + " at ");
 				printLocation(currLocation);
 			} else if (e instanceof StepEvent) {
 				StepEvent se = (StepEvent) e;

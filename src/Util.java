@@ -56,9 +56,16 @@ public class Util {
 	static void printGlobalsVars(StackFrame frame) {
 		try {
 			ClassType classType = (ClassType) frame.location().method().declaringType();
+			ObjectReference objRef = frame.thisObject();
 			for (Field f : classType.allFields()) {
 				System.out.print(f.name() + ": " + f.type().name() + " = ");
-				printValue(classType.getValue(f));
+				Value fieldValue;
+				if (f.isStatic()) {
+					fieldValue = classType.getValue(f);
+				} else {
+					fieldValue = objRef.getValue(f);
+				}
+				printValue(fieldValue);
 				System.out.println();
 			}
 		} catch (Exception e) {
@@ -73,6 +80,8 @@ public class Util {
 	static void printValue(Value val, ThreadReference thread) {
 		if (val instanceof IntegerValue) {
 			System.out.print(((IntegerValue) val).value() + " ");
+		} else if (val instanceof LongValue) {
+			System.out.print(((LongValue) val).value() + "L ");
 		} else if (val instanceof FloatValue) {
 			System.out.print(((FloatValue) val).value() + "f ");
 		} else if (val instanceof DoubleValue) {
@@ -172,7 +181,12 @@ public class Util {
 		}
 		Integer index = null;
 		if (args.length == 2) {
-			index = Integer.valueOf(args[1]);
+			try {
+				index = Integer.valueOf(args[1]);
+			} catch (Exception e) {
+				System.out.println("could not convert " + args[1] + " to integer index");
+				return Response.NOK;
+			}
 		}
 		StackFrame frame = thread.frame(0);
 		List<LocalVariable> vars = frame.visibleVariables();
@@ -212,7 +226,7 @@ public class Util {
 		}
 	}
 
-	static void printSingleField(Field fld, ClassType classType, ThreadReference thread, Integer idx) throws ClassNotLoadedException {
+	static void printSingleField(Field fld, ClassType classType, ThreadReference thread, Integer idx) throws ClassNotLoadedException, IncompatibleThreadStateException {
 		if (fld.type() instanceof ArrayType && idx != null) {
 			ArrayReference arr = ((ArrayReference) classType.getValue(fld));
 			if (idx >= arr.getValues().size()) {
@@ -225,8 +239,74 @@ public class Util {
 			}
 		} else {
 			System.out.print(fld.name() + ": " + fld.type().name() + " = ");
-			printValue(classType.getValue(fld), thread);
+			ObjectReference objRef = thread.frame(0).thisObject();
+			Value fieldValue;
+			if (fld.isStatic()) {
+				fieldValue = classType.getValue(fld);
+			} else {
+				fieldValue = objRef.getValue(fld);
+			}
+			printValue(fieldValue, thread);
 			System.out.println();
 		}
+	}
+
+	public static Response printObjectFieldByName(ThreadReference thread, String[] args) throws IncompatibleThreadStateException, AbsentInformationException, ClassNotLoadedException {
+		if (args == null || args.length != 2) {
+			System.out.println("Invalid number of arguments.\nUsage: print <var> <fld>");
+			return Response.NOK;
+		}
+		String varName = args[0];
+		if (thread.frameCount() == 0) {
+			System.out.println("No frames initialized yet");
+			return Response.NOK;
+		}
+		String fieldName = args[1];
+		StackFrame frame = thread.frame(0);
+		List<LocalVariable> vars = frame.visibleVariables();
+		Optional<LocalVariable> var = vars.stream().filter(lv -> lv.name().equals(varName)).findFirst();
+		if (var.isPresent()) {
+			LocalVariable lv = var.get();
+			Value val = frame.getValue(lv);
+			return printObjectField(val, varName, fieldName, thread);
+		} else {
+			System.out.printf("No visible local variable with name '%s' found.\n", varName);
+			frame.location().method().declaringType();
+			ClassType classType = (ClassType) frame.location().method().declaringType();
+			List<Field> flds = classType.visibleFields();
+			Optional<Field> fld = flds.stream().filter(fv -> fv.name().equals(varName)).findFirst();
+			if (fld.isPresent()) {
+				Field fl = fld.get();
+				Value val = classType.getValue(fl);
+				return printObjectField(val, varName, fieldName, thread);
+			} else {
+				System.out.printf("No visible field with name '%s' found.\n", varName);
+				return Response.NOK;
+			}
+		}
+	}
+
+	static Response printObjectField(Value val, String varName, String fieldName, ThreadReference thread) {
+		if (!(val instanceof ObjectReference)) {
+			System.out.println(varName + " not an object.");
+			return Response.NOK;
+		}
+		ObjectReference objRef = (ObjectReference) val;
+		ClassType classType = (ClassType) objRef.referenceType();
+		Field fld = classType.fieldByName(fieldName);
+		if (fld == null) {
+			System.out.println(varName + " has no field called " + fieldName + ".");
+			return Response.NOK;
+		}
+		Value fieldValue;
+		if (fld.isStatic()) {
+			fieldValue = classType.getValue(fld);
+		} else {
+			fieldValue = objRef.getValue(fld);
+		}
+		System.out.print(varName + "." + fieldName + (fieldValue != null ? ": " + fieldValue.type().name() : "") + " = ");
+		printValue(fieldValue);
+		System.out.println();
+		return Response.OK;
 	}
 }

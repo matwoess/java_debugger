@@ -15,7 +15,8 @@ public class Classes {
 	}
 
 	abstract static class Animal {
-		protected static String sound = null;
+		protected static long ID = 1L;
+		protected String sound = null;
 
 		public void communicate() {
 			System.out.println("The animal makes no sound");
