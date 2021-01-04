@@ -1,62 +1,37 @@
 import com.sun.jdi.*;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
-public class Util {
-	public static Response printBreakpoints(List<Integer> breakpoints) {
-		if (breakpoints.size() == 0) {
-			System.out.println("Currently no breakpoints");
-		} else {
-			System.out.println("Current breakpoints (line numbers): " + breakpoints.stream()
-					.map(Object::toString).collect(Collectors.joining(", ")));
-		}
-		return Response.OK;
-	}
+public class Variables {
 
 	static Response printLocals(ThreadReference thread) throws IncompatibleThreadStateException {
 		if (thread.frames().size() == 0) {
 			System.out.println("No frames initialized yet");
 			return Response.NOK;
 		}
-		printLocalVars(thread.frame(0));
-		return Response.OK;
-	}
-
-	static void printLocalVars(StackFrame frame) {
-		ThreadReference thread = frame.thread();
+		StackFrame frame = thread.frame(0);
 		try {
 			for (LocalVariable v : frame.visibleVariables()) {
 				System.out.print(v.name() + ": " + v.type().name() + " = ");
-				printValue(thread.frame(0).getValue(v), thread);
+				Misc.printValue(thread.frame(0).getValue(v), thread);
 				System.out.println();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		return Response.OK;
 	}
-
 
 	static Response printGlobals(ThreadReference thread) throws IncompatibleThreadStateException {
 		if (thread.frames().size() == 0) {
 			System.out.println("No frames initialized yet");
 			return Response.NOK;
 		}
-		printGlobalsVars(thread.frame(0));
-		return Response.OK;
-	}
-
-	static void printGlobalsVars(StackFrame frame) {
+		StackFrame frame = thread.frame(0);
+		ObjectReference objRef = frame.thisObject();
+		ClassType classType = (ClassType) frame.location().method().declaringType();
 		try {
-			ClassType classType = (ClassType) frame.location().method().declaringType();
-			ObjectReference objRef = frame.thisObject();
 			for (Field f : classType.allFields()) {
 				System.out.print(f.name() + ": " + f.type().name() + " = ");
 				Value fieldValue;
@@ -65,109 +40,15 @@ public class Util {
 				} else {
 					fieldValue = objRef.getValue(f);
 				}
-				printValue(fieldValue);
+				Misc.printValue(fieldValue);
 				System.out.println();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-	}
-
-	static void printValue(Value val) {
-		printValue(val, null);
-	}
-
-	static void printValue(Value val, ThreadReference thread) {
-		if (val instanceof IntegerValue) {
-			System.out.print(((IntegerValue) val).value() + " ");
-		} else if (val instanceof LongValue) {
-			System.out.print(((LongValue) val).value() + "L ");
-		} else if (val instanceof FloatValue) {
-			System.out.print(((FloatValue) val).value() + "f ");
-		} else if (val instanceof DoubleValue) {
-			System.out.print(((DoubleValue) val).value() + " ");
-		} else if (val instanceof StringReference) {
-			System.out.print('"' + ((StringReference) val).value() + '"' + ' ');
-		} else if (val instanceof ArrayReference) {
-			List<Value> values = ((ArrayReference) val).getValues();
-			System.out.print("[ ");
-			for (Value v : values) {
-				printValue(v, thread);
-			}
-			System.out.print("]");
-		} else if (val instanceof ObjectReference) {
-			ObjectReference ref = (ObjectReference) val;
-			if (ref.type().signature().equals("Ljava/util/ArrayList;")) {
-				Method toArray = ref.referenceType().methodsByName("toArray", "()[Ljava/lang/Object;").get(0);
-				try {
-					Value value = ref.invokeMethod(thread, toArray, Collections.emptyList(), 0);
-					printValue(value, thread);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			} else {
-				Method toString = ref.referenceType().methodsByName("toString", "()Ljava/lang/String;").get(0);
-				try {
-					Value value = ref.invokeMethod(thread, toString, Collections.emptyList(), 0);
-					printValue(value, thread);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		} else if (val == null) {
-			System.out.print("null ");
-		} else {
-			System.out.print("TODO ");
-		}
-	}
-
-
-	public static Response stackTrace(ThreadReference thread) throws IncompatibleThreadStateException {
-		List<StackFrame> frames = thread.frames();
-		Consumer<Integer> identFn = (Integer x) -> {
-			for (int i = 0; i < x; i++) System.out.print(" ");
-		};
-		System.out.println("Stack trace:");
-		int ident = -2;
-		for (StackFrame frame : frames) {
-			Method meth = frame.location().method();
-			identFn.accept(ident);
-			if (ident >= 0) System.out.print("L ");
-			System.out.println(meth.declaringType().name() + "." + meth.name() + ":");
-			// printLocalVars(frame);
-			ident += 2;
-		}
 		return Response.OK;
 	}
 
-	public static Response printProgramState(String debugClass, Location currLoc, List<Integer> breakpoints) {
-		Path path = Paths.get(debugClass + ".java");
-		try {
-			List<String> programLines = Files.readAllLines(path);
-			int lineNr = 0;
-			for (String line : programLines) {
-				lineNr++;
-				if (currLoc != null && lineNr == currLoc.lineNumber()) {
-					System.out.print(">");
-				} else {
-					System.out.print(" ");
-				}
-				System.out.printf("%3d", lineNr);
-				System.out.print(" ");
-				if (breakpoints.contains(lineNr)) {
-					System.out.print("o");
-				} else {
-					System.out.print(" ");
-				}
-				System.out.print(" ");
-				System.out.println(line);
-			}
-			return Response.OK;
-		} catch (IOException ex) {
-			ex.printStackTrace();
-			return Response.NOK;
-		}
-	}
 
 	public static Response printValueByName(ThreadReference thread, String[] args) throws IncompatibleThreadStateException, AbsentInformationException, ClassNotLoadedException {
 		if (args == null || args.length > 2) {
@@ -216,12 +97,12 @@ public class Util {
 			} else {
 				Value val = arr.getValue(idx);
 				System.out.print(var.name() + "[" + idx + "]" + (val != null ? ": " + val.type().name() : "") + " = ");
-				printValue(val, frame.thread());
+				Misc.printValue(val, frame.thread());
 				System.out.println();
 			}
 		} else {
 			System.out.print(var.name() + ": " + var.type().name() + " = ");
-			printValue(frame.getValue(var), frame.thread());
+			Misc.printValue(frame.getValue(var), frame.thread());
 			System.out.println();
 		}
 	}
@@ -234,7 +115,7 @@ public class Util {
 			} else {
 				Value val = arr.getValue(idx);
 				System.out.print(fld.name() + "[" + idx + "]" + (val != null ? ": " + val.type().name() : "") + " = ");
-				printValue(val, thread);
+				Misc.printValue(val, thread);
 				System.out.println();
 			}
 		} else {
@@ -246,7 +127,7 @@ public class Util {
 			} else {
 				fieldValue = objRef.getValue(fld);
 			}
-			printValue(fieldValue, thread);
+			Misc.printValue(fieldValue, thread);
 			System.out.println();
 		}
 	}
@@ -268,7 +149,7 @@ public class Util {
 		if (var.isPresent()) {
 			LocalVariable lv = var.get();
 			Value val = frame.getValue(lv);
-			return printObjectField(val, varName, fieldName, thread);
+			return printObjectField(val, varName, fieldName);
 		} else {
 			System.out.printf("No visible local variable with name '%s' found.\n", varName);
 			frame.location().method().declaringType();
@@ -278,7 +159,7 @@ public class Util {
 			if (fld.isPresent()) {
 				Field fl = fld.get();
 				Value val = classType.getValue(fl);
-				return printObjectField(val, varName, fieldName, thread);
+				return printObjectField(val, varName, fieldName);
 			} else {
 				System.out.printf("No visible field with name '%s' found.\n", varName);
 				return Response.NOK;
@@ -286,7 +167,7 @@ public class Util {
 		}
 	}
 
-	static Response printObjectField(Value val, String varName, String fieldName, ThreadReference thread) {
+	static Response printObjectField(Value val, String varName, String fieldName) {
 		if (!(val instanceof ObjectReference)) {
 			System.out.println(varName + " not an object.");
 			return Response.NOK;
@@ -305,7 +186,7 @@ public class Util {
 			fieldValue = objRef.getValue(fld);
 		}
 		System.out.print(varName + "." + fieldName + (fieldValue != null ? ": " + fieldValue.type().name() : "") + " = ");
-		printValue(fieldValue);
+		Misc.printValue(fieldValue);
 		System.out.println();
 		return Response.OK;
 	}
