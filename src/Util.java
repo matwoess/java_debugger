@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -30,10 +31,11 @@ public class Util {
 	}
 
 	static void printLocalVars(StackFrame frame) {
+		ThreadReference thread = frame.thread();
 		try {
 			for (LocalVariable v : frame.visibleVariables()) {
 				System.out.print(v.name() + ": " + v.type().name() + " = ");
-				printValue(frame.getValue(v));
+				printValue(thread.frame(0).getValue(v), thread);
 				System.out.println();
 			}
 		} catch (Exception e) {
@@ -65,6 +67,10 @@ public class Util {
 	}
 
 	static void printValue(Value val) {
+		printValue(val, null);
+	}
+
+	static void printValue(Value val, ThreadReference thread) {
 		if (val instanceof IntegerValue) {
 			System.out.print(((IntegerValue) val).value() + " ");
 		} else if (val instanceof FloatValue) {
@@ -77,19 +83,28 @@ public class Util {
 			List<Value> values = ((ArrayReference) val).getValues();
 			System.out.print("[ ");
 			for (Value v : values) {
-				printValue(v);
+				printValue(v, thread);
 			}
 			System.out.print("]");
 		} else if (val instanceof ObjectReference) {
 			ObjectReference ref = (ObjectReference) val;
-//			Method toString = ref.referenceType().methodsByName("toString", "()Ljava/lang/String;").get(0);
-//			try {
-//				Value value = ref.invokeMethod(ref.owningThread(), toString, Collections.emptyList(), 0);
-//				printValue(value);
-//			} catch (Exception e) {
-//				e.printStackTrace();
-//			}
-			System.out.print(ref.toString() + " ");
+			if (ref.type().signature().equals("Ljava/util/ArrayList;")) {
+				Method toArray = ref.referenceType().methodsByName("toArray", "()[Ljava/lang/Object;").get(0);
+				try {
+					Value value = ref.invokeMethod(thread, toArray, Collections.emptyList(), 0);
+					printValue(value, thread);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			} else {
+				Method toString = ref.referenceType().methodsByName("toString", "()Ljava/lang/String;").get(0);
+				try {
+					Value value = ref.invokeMethod(thread, toString, Collections.emptyList(), 0);
+					printValue(value, thread);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
 		} else if (val == null) {
 			System.out.print("null ");
 		} else {
@@ -171,7 +186,7 @@ public class Util {
 			List<Field> flds = classType.visibleFields();
 			Optional<Field> fld = flds.stream().filter(fv -> fv.name().equals(varName)).findFirst();
 			if (fld.isPresent()) {
-				printSingleField(fld.get(), classType, index);
+				printSingleField(fld.get(), classType, thread, index);
 			} else {
 				System.out.printf("No visible field with name '%s' found.\n", varName);
 			}
@@ -187,17 +202,17 @@ public class Util {
 			} else {
 				Value val = arr.getValue(idx);
 				System.out.print(var.name() + "[" + idx + "]" + (val != null ? ": " + val.type().name() : "") + " = ");
-				printValue(val);
+				printValue(val, frame.thread());
 				System.out.println();
 			}
 		} else {
 			System.out.print(var.name() + ": " + var.type().name() + " = ");
-			printValue(frame.getValue(var));
+			printValue(frame.getValue(var), frame.thread());
 			System.out.println();
 		}
 	}
 
-	static void printSingleField(Field fld, ClassType classType, Integer idx) throws ClassNotLoadedException {
+	static void printSingleField(Field fld, ClassType classType, ThreadReference thread, Integer idx) throws ClassNotLoadedException {
 		if (fld.type() instanceof ArrayType && idx != null) {
 			ArrayReference arr = ((ArrayReference) classType.getValue(fld));
 			if (idx >= arr.getValues().size()) {
@@ -205,12 +220,12 @@ public class Util {
 			} else {
 				Value val = arr.getValue(idx);
 				System.out.print(fld.name() + "[" + idx + "]" + (val != null ? ": " + val.type().name() : "") + " = ");
-				printValue(val);
+				printValue(val, thread);
 				System.out.println();
 			}
 		} else {
 			System.out.print(fld.name() + ": " + fld.type().name() + " = ");
-			printValue(classType.getValue(fld));
+			printValue(classType.getValue(fld), thread);
 			System.out.println();
 		}
 	}
