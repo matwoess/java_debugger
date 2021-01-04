@@ -12,7 +12,7 @@ public class Classes {
 	}
 
 	abstract static class Animal {
-		protected String sound = null;
+		protected static String sound = null;
 		public void communicate() {
 			System.out.println("The animal makes no sound");
 		}
