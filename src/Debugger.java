@@ -194,6 +194,7 @@ public class Debugger {
 				currLocation = ((BreakpointEvent) e).location();
 				System.out.print("Breakpoint halted in " + currLocation.method().name() + " at ");
 				Util.printLocation(currLocation);
+				reqManager.deleteEventRequest(e.request());
 			} else if (e instanceof StepEvent) {
 				StepEvent se = (StepEvent) e;
 				System.out.print("Step halted in " + se.location().method().name() + " at ");

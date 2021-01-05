@@ -2,7 +2,7 @@ import java.util.Arrays;
 
 public class Test {
 	public static int globalVar = 10;
-	public static double[] globalArr = new double[] {2.0, 4.5};
+	public static double[] globalArr = new double[]{2.0, 4.5};
 
 	public static void main(String[] args) {
 		int i = 1;
@@ -34,6 +34,7 @@ public class Test {
 		if (x == 1) {
 			return x;
 		}
-		return x + sumOfFirstN(x - 1);
+		int recResult = sumOfFirstN(x - 1);
+		return x + recResult;
 	}
 }
