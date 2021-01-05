@@ -118,4 +118,15 @@ public class Util {
 			return Response.NOK;
 		}
 	}
+
+	public static Response printHelp() {
+		String helpFileName = "Commands.txt";
+		Path helpFile = Paths.get(helpFileName);
+		try {
+			Files.readAllLines(helpFile).forEach(System.out::println);
+		} catch (IOException e) {
+			System.out.println("Help file '" + helpFileName + "' in root directory not found.");
+		}
+		return Response.OK;
+	}
 }

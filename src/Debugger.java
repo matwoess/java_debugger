@@ -74,6 +74,7 @@ public class Debugger {
 			case PRINT_VALUE -> respond(Variables.printValueByName(getThread(), args));
 			case PRINT_FIELD -> respond(Variables.printObjectFieldByName(getThread(), args));
 			case STATE -> respond(Util.printProgramState(debugClass, currLocation, breakpoints));
+			case HELP -> respond(Util.printHelp());
 			default -> {
 				System.out.println("Invalid command");
 				respond(Response.NOK);

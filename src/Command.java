@@ -13,6 +13,7 @@ public enum Command {
 	PRINT_VALUE("print"),
 	PRINT_FIELD("printf"),
 	STATE("state"),
+	HELP("help"),
 	UNKNOWN("");
 
 	private final String cmd;
