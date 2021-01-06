@@ -66,8 +66,8 @@ public class Debugger {
 			case STEP_INTO -> step(getThread(), StepRequest.STEP_INTO);
 			case LOCALS -> respond(Variables.printLocals(getThread()));
 			case GLOBALS -> respond(Variables.printGlobals(getThread()));
-			case SET_BREAKPOINT -> installBreakpoint(args);
-			case REMOVE_BREAKPOINT -> removeBreakpoint(args);
+			case SET_BREAKPOINT -> respond(installBreakpoint(args));
+			case REMOVE_BREAKPOINT -> respond(removeBreakpoint(args));
 			case PRINT_BREAKPOINTS -> respond(Util.printBreakpoints(breakpoints));
 			case METHOD_ENTRY -> respond(methodEntry());
 			case STACK_TRACE -> respond(Util.stackTrace(getThread()));
@@ -100,33 +100,42 @@ public class Debugger {
 		return Response.OK;
 	}
 
-	private void installBreakpoint(String[] args) {
+	private Response installBreakpoint(String[] args) {
 		if (args == null || args.length != 1) {
 			System.out.println("Invalid number of arguments. Line number must be specified.");
-			respond(Response.NOK);
-			return;
+			return Response.NOK;
 		}
-		int lineNr = Integer.parseInt(args[0]);
+		Integer lineNr;
+		try {
+			lineNr = Integer.parseInt(args[0]);
+		} catch (Exception e) {
+			System.out.println("Could not convert '" + args[0] + "' to integer (line number).");
+			return Response.NOK;
+		}
 		breakpoints.add(lineNr);
 		System.out.printf("Breakpoint in line %s added.\n", lineNr);
-		respond(Response.OK);
+		return Response.OK;
 	}
 
-	private void removeBreakpoint(String[] args) {
+	private Response removeBreakpoint(String[] args) {
 		if (args == null || args.length != 1) {
 			System.out.println("Invalid number of arguments. Line number must be specified.");
-			respond(Response.NOK);
-			return;
+			return Response.NOK;
 		}
-		Integer lineNr = Integer.parseInt(args[0]);
+		Integer lineNr;
+		try {
+			lineNr = Integer.parseInt(args[0]);
+		} catch (Exception e) {
+			System.out.println("Could not convert '" + args[0] + "' to integer (line number).");
+			return Response.NOK;
+		}
 		if (!breakpoints.contains(lineNr)) {
 			System.out.println("No breakpoint yet in line number " + lineNr);
-			respond(Response.NOK);
-			return;
+			return Response.NOK;
 		}
 		breakpoints.remove(lineNr);
 		System.out.printf("Breakpoint in line %s removed.\n", lineNr);
-		respond(Response.OK);
+		return Response.OK;
 	}
 
 	void step(ThreadReference thread, int stepType) {
