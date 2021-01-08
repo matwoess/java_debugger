@@ -17,8 +17,8 @@ class Redirection extends Thread {
 				int n = in.read(buf, 0, 1024);
 				if (n < 0) break;
 				out.write(buf, 0, n);
+				out.flush();
 			}
-			out.flush();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
